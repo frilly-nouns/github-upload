@@ -1,0 +1,281 @@
+#cloud-config
+# vim: syntax=yaml
+
+
+# system_info: 
+#   default_user:
+#     name: cloud-user
+#     gecos: "Cloud Orchestration User"
+#     primary-group: users
+#     shell: /bin/bash
+#     sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    
+
+
+timezone: Utc
+
+
+# By default: when ``preserve_hostname`` is not specified cloud-init
+# updates ``/etc/hostname`` per-boot based on the cloud provided
+# ``local-hostname`` setting. If you manually change ``/etc/hostname``
+# after boot cloud-init will no longer modify it.
+#
+# This default cloud-init behavior is equivalent to this cloud-config:
+
+# Prevent cloud-init from updating ``/etc/hostname``
+preserve_hostname: true
+
+# --- Example4 ---
+# Set hostname to "external.fqdn.me" instead of "myhost"
+# fqdn: primary.multipass.localdomain
+# hostname: primary-multipass
+# prefer_fqdn_over_hostname: true
+
+# Do not update or manage /etc/hosts at all. This is the default behavior.
+#
+# Whatever is present at instance boot time will be present after boot.
+# User changes will not be overwritten.
+manage_etc_hosts: true
+
+# --- Example2 ---
+# Manage /etc/hosts with cloud-init.
+# On every boot, /etc/hosts will be re-written from
+# ``/etc/cloud/templates/hosts.tmpl``.
+#
+# The strings '$hostname' and '$fqdn' are replaced in the template
+# with the appropriate values either from the config-config ``fqdn`` or
+# ``hostname`` if provided. When absent, the cloud metadata will be
+# checked for ``local-hostname` which can be split into <hostname>.<fqdn>.
+#
+# To make modifications persistent across a reboot, you must modify
+# ``/etc/cloud/templates/hosts.tmpl``.
+#manage_etc_hosts: true
+
+# --- Example3 ---
+# Update /etc/hosts every boot providing a "localhost" 127.0.1.1 entry
+# with the latest hostname and fqdn as provided by either IMDS or
+# cloud-config.
+# All other entries will be left as is.
+# 'ping `hostname`' will ping 127.0.1.1
+#manage_etc_hosts: localhost
+
+#resize_rootfs: false
+#
+#disk_setup:
+#  /dev/sda:
+#    table_type: 'mbr'
+#    layout:
+#      - [75,25]
+#    overwrite: true
+#
+#fs_setup:
+#  - label: root_fs
+#    filesystem: 'ext4'
+#    device: /dev/sda
+#    partition: 1
+#    overwrite: true
+#  - label: apps_fs
+#    filesystem: 'xfs'
+#    device: /dev/sda
+#    partition: sda2
+#    overwrite: true
+#
+## now we attach the settings
+#
+#
+#mounts:
+#  - ["/dev/sda1", "/"]
+#  - ["/dev/sda2", "/apps"]
+#
+#growpart:
+#  mode: auto
+#  devices: ['/apps'] 
+#  ignore_growroot_disabled: false
+#
+
+
+
+
+# boot commands
+# default: none
+# this is very similar to runcmd, but commands run very early
+# in the boot process, only slightly after a 'boothook' would run.
+# bootcmd should really only be used for things that could not be
+# done later in the boot process.  bootcmd is very much like
+# boothook, but possibly with more friendly.
+# - bootcmd will run on every boot
+# - the INSTANCE_ID variable will be set to the current instance id.
+# - you can use 'cloud-init-per' command to help only run once
+
+bootcmd:
+  - echo "system boot at `date` " >> /var/log/boot.cloud-init
+#  - [ cloud-init-per, once, mymkfs, mkfs, /dev/vdb ]
+##- printf "[Resolve]\nDNS=1.1.1.1 1.0.0.1 2606:4700:4700::1111 2606:4700:4700::1001\nFallbackDNS=9.9.9.9 149.112.112.112 2620:fe::fe 2620:fe::9" >> /etc/systemd/resolved.conf
+##- [systemctl, restart, systemd-resolved]
+# This is an example file to automatically configure resolv.conf when the
+# instance boots for the first time.
+#
+
+runcmd:
+#- mkdir /apps
+#- [ partx, --update, /dev/sda ]
+#- [ mkfs.xfs, /dev/sda2 ]
+#- [ partprobe ]
+#- parted /dev/sda set 1 boot on p
+- |
+  # disable swap
+  swapoff -a
+  sysctl -w vm.swappiness=0
+#  echo "vm.swappiness = 0" | tee -a /etc/sysctl.conf
+
+- |
+ # disable unnecessary services
+ systemctl disable man-db.timer man-db.service --now
+ systemctl disable apport.service apport-autoreport.service  --now
+ systemctl disable apt-daily.service apt-daily.timer --now
+ systemctl disable apt-daily-upgrade.service apt-daily-upgrade.timer --now
+ systemctl disable unattended-upgrades.service --now
+ systemctl disable motd-news.service motd-news.timer --now
+ systemctl disable bluetooth.target --now
+ systemctl disable ua-messaging.service ua-messaging.timer --now
+ systemctl disable ua-timer.timer ua-timer.service --now
+ systemctl disable systemd-tmpfiles-clean.timer --now
+#
+
+# Update apt database on first boot (run 'apt-get update').
+# Note, if packages are given, or package_upgrade is true, then
+# update will be done independent of this setting.
+#
+# Default: false
+# Aliases: apt_update
+package_update: true
+package_upgrade: true
+
+package_reboot_if_required: true
+
+packages:
+  - zfsutils-linux
+
+byobu_by_default: user
+
+# Add users to the system. Users are added after groups are added.
+# Note: Most of these configuration options will not be honored if the user
+#       already exists. Following options are the exceptions and they are
+#       applicable on already-existing users:
+#       - 'plain_text_passwd', 'hashed_passwd', 'lock_passwd', 'sudo',
+#         'ssh_authorized_keys', 'ssh_redirect_user'.
+users:
+  - default
+  - name: duroda
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_import_id: 
+    - lp:duroda
+
+
+
+#ssh_keys:
+#  rsa_private: |
+#    -----BEGIN RSA PRIVATE KEY-----
+#    MIIBxwIBAAJhAKD0YSHy73nUgysO13XsJmd4fHiFyQ+00R7VVu2iV9Qco
+#    ...
+#    -----END RSA PRIVATE KEY-----
+#  rsa_public: ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAGEAoPRhIfLvedSDKw7Xd ...
+#  rsa_certificate: |
+#    ssh-rsa-cert-v01@openssh.com AAAAIHNzaC1lZDI1NTE5LWNlcnQt ...
+#  dsa_private: |
+#    -----BEGIN DSA PRIVATE KEY-----
+#    MIIBxwIBAAJhAKD0YSHy73nUgysO13XsJmd4fHiFyQ+00R7VVu2iV9Qco
+#    ...
+#    -----END DSA PRIVATE KEY-----
+#  dsa_public: ssh-dsa AAAAB3NzaC1yc2EAAAABIwAAAGEAoPRhIfLvedSDKw7Xd ...
+#  dsa_certificate: |
+#    ssh-dsa-cert-v01@openssh.com AAAAIHNzaC1lZDI1NTE5LWNlcnQt ...
+ssh_authorized_keys:
+  - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDS3dEsF7oW4ztGDGCDO3APjzwGwZqwRbPlt+/uHQgkh9Qoxb/vEjWtFqP8SG4KCltaKynB3AK52zIH7kGaLTRT5JY53tbDmhd3WHSNsoS+AT9HgQyust5Wu+0vRsius5Km4u/OsUHyMrQhegE0ilDQ/wB6OsqRAGaMqn5lz3WLfDFuktkCyqojQZA4h+rgQXh+dhnLouW7RcUObDxsgNgFpiTG0nnP3RBZHn+FjbY2dasE0n+JiNtdp4agx9y7C3eGdiBMqOCvhgVaxXkth3YcRZt1bXDnpcHw+jGs+JBg6bO0EO3yn3+tlfD7VkJvI92Xp4xYFQ85Lyo94x2Yi6CI/Whnlx2UHJJ5lL/7VsKKIhBmDFhSLgaqIl9rOJ5b4aPUYkp0XeK+sNjbjmLvHvUlNBicoX0y2z1Ln3Rbct0hXZgTyYWpsm44x5s+Uz/s4Z4Buv+Xb3mlL0nRgzo1OiHS/Gbxpp6ZwglwqfBTy+OiCbFcLCxOiHvcKdSTjhbD8tM=
+#  - ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA3I7VUf2l5gSn5uavROsc5HRDpZ ...
+ssh_deletekeys: true
+ssh_genkeytypes: [rsa, ecdsa, ed25519]
+disable_root: true
+disable_root_opts: no-port-forwarding,no-agent-forwarding,no-X11-forwarding
+allow_public_ssh_keys: true
+ssh_quiet_keygen: true
+ssh_publish_hostkeys:
+  enabled: true
+  blacklist: [dsa]
+
+## Write out base64 encoded content to /etc/sysconfig/selinux
+#write_files:
+#- encoding: b64
+#  content: CiMgVGhpcyBmaWxlIGNvbnRyb2xzIHRoZSBzdGF0ZSBvZiBTRUxpbnV4...
+#  owner: root:root
+#  path: /etc/sysconfig/selinux
+#  permissions: '0644'
+
+# Appending content to an existing file
+write_files:
+#  - content: |
+#       #!/bin/sh
+#       version=$(rpm -q --qf '%{version}' system-release)
+#       cat << EOF
+#            __     ______       __     ______    
+#           /\ \   /\  __ \     /\ \   /\  __ \   
+#          _\_\ \  \ \ \/\ \   _\_\ \  \ \ \/\ \  
+#         /\_____\  \ \_____\ /\_____\  \ \_____\ 
+#         \/_____/   \/_____/ \/_____/   \/_____/ 
+#       EOF
+#    owner: root:root
+#    path: /etc/update-motd.d/30-banner
+#    permissions: '0766'
+
+ - content: |
+      
+      ################################################################################
+      ================================================================================
+                           UNAUTHORIZED   ACCESS   PROHIBITED
+      ================================================================================
+      All activities performed on this device are logged and monitored. 
+      
+      This service is restricted to authorized users only. You must have explicit 
+      permission to access this device. Unauthorized attempts and actions to access or 
+      use this system will be reported to appropriate law enforcement agencies and may 
+      result in civil and/or criminal penalties.
+      ################################################################################
+  
+   path: /etc/motd
+   owner: root
+
+ - encoding: gzip
+   content: !!binary |
+      H4sIAIDb/U8C/1NW1E/KzNMvzuBKTc7IV8hIzcnJVyjPL8pJ4QIA6N+MVxsAAAA=
+   path: /usr/bin/hello
+   permissions: '0755'
+
+ - path: /root/CLOUD_INIT_WAS_HERE
+   append: true
+
+#- path: /etc/nginx/conf.d/example.com.conf
+#  content: |
+#    server {
+#        server_name example.com;
+#        listen 80;
+#        root /var/www;
+#        location / {
+#            try_files $uri $uri/ $uri.html =404;
+#        }
+#    }
+#  owner: 'nginx:nginx'
+#  permissions: '0640'
+#  defer: true
+
+# final_message
+# default: cloud-init boot finished at $TIMESTAMP. Up $UPTIME seconds
+# this message is written by cloud-final when the system is finished
+# its first boot
+final_message: |
+  System uptime:    $uptime
+  System timestamp: $timestamp
+
+  cloud-init version:     $version
+  cloud-init datasource:  $datasource
+  
